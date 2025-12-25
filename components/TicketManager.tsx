@@ -110,21 +110,26 @@ export const TicketManager: React.FC<TicketManagerProps> = ({ match, latestOverO
     return isOverUnder ? latestOverOdds?.handicap : latestHomeOdds?.handicap;
   }, [betType, latestOverOdds, latestHomeOdds]);
 
-  const { totalStake, potentialWinnings } = useMemo(() => {
+  const summary = useMemo(() => {
     return tickets.reduce((acc, ticket) => {
+        acc.totalStake += ticket.stake;
         if (ticket.status === 'pending') {
-            acc.totalStake += ticket.stake;
-            acc.potentialWinnings += ticket.stake * ticket.odds;
+            acc.pendingStake += ticket.stake;
+        } else if (ticket.status === 'won') {
+            acc.totalPL += (ticket.stake * ticket.odds) - ticket.stake;
+        } else if (ticket.status === 'lost') {
+            acc.totalPL -= ticket.stake;
         }
         return acc;
-    }, { totalStake: 0, potentialWinnings: 0 });
+    }, { totalStake: 0, pendingStake: 0, totalPL: 0 });
   }, [tickets]);
 
-  const getStatusPill = (status: BetTicket['status']) => {
+  const getStatusPillContent = (status: BetTicket['status']) => {
     switch(status) {
-        case 'pending': return "bg-yellow-100 text-yellow-800";
-        case 'won': return "bg-green-100 text-green-800";
-        case 'lost': return "bg-red-100 text-red-800";
+        case 'pending': return { text: 'Đang chờ', className: "bg-yellow-100 text-yellow-800" };
+        case 'won': return { text: 'Thắng', className: "bg-green-100 text-green-800" };
+        case 'lost': return { text: 'Thua', className: "bg-red-100 text-red-800" };
+        default: return { text: '', className: 'bg-gray-100 text-gray-800' };
     }
   }
 
@@ -206,41 +211,64 @@ export const TicketManager: React.FC<TicketManagerProps> = ({ match, latestOverO
         <p className="text-center text-xs text-gray-500 py-4">Chưa có vé cược nào cho trận này.</p>
       ) : (
         <div className="space-y-3">
-          {tickets.map(ticket => (
-            <div key={ticket.id} className="border border-gray-200 rounded-lg p-3">
-              <div className="flex justify-between items-start">
-                <div>
-                  <div className="font-bold text-gray-800">{ticket.betType} {ticket.handicap}</div>
-                  <div className="text-xs text-gray-500">@{ticket.minute}' - Tỷ lệ {ticket.odds.toFixed(2)}</div>
-                </div>
-                <div className={`text-xs font-bold px-2 py-0.5 rounded-full ${getStatusPill(ticket.status)}`}>
-                  {ticket.status.charAt(0).toUpperCase() + ticket.status.slice(1)}
-                </div>
-              </div>
-              <div className="flex justify-between items-end mt-2 pt-2 border-t border-gray-100">
-                <div className="text-sm">
-                  <div>Cược: <span className="font-semibold text-gray-700">{ticket.stake.toLocaleString()}</span></div>
-                  <div className="text-xs text-gray-500">Thắng: {(ticket.stake * ticket.odds).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
-                </div>
-                {ticket.status === 'pending' ? (
-                  <div className="flex gap-2">
-                    <button onClick={() => handleUpdateStatus(ticket.id, 'won')} className="p-2 bg-green-100 text-green-600 rounded-full hover:bg-green-200"><CheckCircle className="w-4 h-4" /></button>
-                    <button onClick={() => handleUpdateStatus(ticket.id, 'lost')} className="p-2 bg-red-100 text-red-600 rounded-full hover:bg-red-200"><XCircle className="w-4 h-4" /></button>
-                    <button onClick={() => handleDeleteTicket(ticket.id)} className="p-2 bg-gray-100 text-gray-500 rounded-full hover:bg-gray-200"><Trash2 className="w-4 h-4" /></button>
+          {tickets.map(ticket => {
+            const pill = getStatusPillContent(ticket.status);
+            return (
+              <div key={ticket.id} className="border border-gray-200 rounded-lg p-3">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <div className="font-bold text-gray-800">{ticket.betType} {ticket.handicap}</div>
+                    <div className="text-xs text-gray-500">@{ticket.minute}' - Tỷ lệ {ticket.odds.toFixed(2)}</div>
                   </div>
-                ) : (
-                  <button onClick={() => handleDeleteTicket(ticket.id)} className="p-2 bg-gray-100 text-gray-500 rounded-full hover:bg-gray-200"><Trash2 className="w-4 h-4" /></button>
-                )}
+                  <div className={`text-xs font-bold px-2 py-0.5 rounded-full ${pill.className}`}>
+                    {pill.text}
+                  </div>
+                </div>
+                <div className="flex justify-between items-end mt-2 pt-2 border-t border-gray-100">
+                  <div className="text-sm">
+                    <div>Cược: <span className="font-semibold text-gray-700">{ticket.stake.toLocaleString()}</span></div>
+                    {ticket.status === 'pending' && (
+                      <div className="text-xs text-gray-500">Thắng tiềm năng: {(ticket.stake * ticket.odds).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                    )}
+                    {ticket.status === 'won' && (
+                      <div className="text-xs font-bold text-green-600">Lãi: +{(ticket.stake * ticket.odds - ticket.stake).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                    )}
+                    {ticket.status === 'lost' && (
+                      <div className="text-xs font-bold text-red-600">Lỗ: -{ticket.stake.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                    )}
+                  </div>
+                  {ticket.status === 'pending' ? (
+                    <div className="flex gap-2">
+                      <button onClick={() => handleUpdateStatus(ticket.id, 'won')} className="p-2 bg-green-100 text-green-600 rounded-full hover:bg-green-200"><CheckCircle className="w-4 h-4" /></button>
+                      <button onClick={() => handleUpdateStatus(ticket.id, 'lost')} className="p-2 bg-red-100 text-red-600 rounded-full hover:bg-red-200"><XCircle className="w-4 h-4" /></button>
+                      <button onClick={() => handleDeleteTicket(ticket.id)} className="p-2 bg-gray-100 text-gray-500 rounded-full hover:bg-gray-200"><Trash2 className="w-4 h-4" /></button>
+                    </div>
+                  ) : (
+                    <button onClick={() => handleDeleteTicket(ticket.id)} className="p-2 bg-gray-100 text-gray-500 rounded-full hover:bg-gray-200"><Trash2 className="w-4 h-4" /></button>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
 
-      {tickets.some(t => t.status === 'pending') && (
-        <div className="mt-4 pt-3 border-t border-dashed text-sm flex justify-between">
-            <span className="font-semibold text-gray-800">Tổng cược (Pending):</span>
-            <span className="font-bold text-blue-600">{totalStake.toLocaleString()}</span>
+      {tickets.length > 0 && (
+        <div className="mt-4 pt-3 border-t border-dashed space-y-1 text-sm">
+            <div className="flex justify-between">
+                <span className="font-semibold text-gray-600">Tổng cược đã đặt:</span>
+                <span className="font-bold text-gray-800">{summary.totalStake.toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between">
+                <span className="font-semibold text-gray-600">Tổng cược đang chờ:</span>
+                <span className="font-bold text-yellow-600">{summary.pendingStake.toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between">
+                <span className="font-semibold text-gray-600">Lãi/Lỗ đã quyết:</span>
+                <span className={`font-bold ${summary.totalPL >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {summary.totalPL >= 0 ? '+' : ''}{summary.totalPL.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                </span>
+            </div>
         </div>
       )}
     </div>
