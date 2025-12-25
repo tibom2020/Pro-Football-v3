@@ -1,0 +1,77 @@
+
+export interface MatchInfo {
+  id: string;
+  league: { name: string };
+  home: { name: string; image_id?: string };
+  away: { name: string; image_id?: string };
+  ss: string; // Score string "1-0"
+  time: string; // "45"
+  timer?: { tm: number; ts: number; tt: string; ta: number; md: number };
+  stats?: Record<string, string[]>; // "attacks": ["10", "5"]
+}
+
+export interface ProcessedStats {
+  attacks: [number, number];
+  dangerous_attacks: [number, number];
+  on_target: [number, number];
+  off_target: [number, number];
+  corners: [number, number];
+  yellowcards: [number, number];
+  redcards: [number, number];
+}
+
+export interface OddsItem {
+  id: string;
+  home_od?: string;
+  draw_od?: string;
+  away_od?: string;
+  over_od?: string;
+  under_od?: string;
+  handicap?: string;
+  time_str: string;
+  add_time: string;
+}
+
+export interface OddsData {
+  results: {
+    odds: {
+      "1_2": OddsItem[]; // Match Winner / Handicap
+      "1_3": OddsItem[]; // Over/Under
+    };
+  };
+}
+
+export type BetType = 'OVER' | 'UNDER' | 'HOME' | 'AWAY';
+export type BetStatus = 'PENDING' | 'WON' | 'LOST' | 'HALF_WON' | 'HALF_LOST' | 'PUSH';
+
+export interface Bet {
+  id: string;
+  matchId: string;
+  matchName: string;
+  type: BetType;
+  handicap: number;
+  odds: number;
+  stake: number;
+  scoreAtBet: string;
+  finalScore?: string;
+  status: BetStatus;
+  profit: number;
+  timestamp: number;
+}
+
+export interface PreGoalAnalysis {
+  score: number;
+  level: 'thấp' | 'trung bình' | 'cao' | 'rất cao';
+  factors: {
+    apiMomentum: number;
+    shotCluster: number;
+    pressure: number;
+  };
+  reasoning?: string;
+}
+
+export interface AIPredictionResponse {
+  goal_probability: number;
+  confidence_level: 'thấp' | 'trung bình' | 'cao' | 'rất cao';
+  reasoning?: string;
+}
