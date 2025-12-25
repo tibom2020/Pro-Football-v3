@@ -69,3 +69,16 @@ export interface AIPredictionResponse {
   confidence_level: 'thấp' | 'trung bình' | 'cao' | 'rất cao';
   reasoning?: string; // Optional explanation from AI
 }
+
+// New interface for the Bet Ticket Manager
+export interface BetTicket {
+  id: string;
+  matchId: string;
+  betType: 'Tài' | 'Xỉu' | 'Đội nhà' | 'Đội khách';
+  handicap: string;
+  odds: number;
+  stake: number;
+  minute: number;
+  status: 'pending' | 'won' | 'lost';
+  notes?: string;
+}

@@ -5,6 +5,7 @@ import { parseStats, getMatchDetails, getMatchOdds, getGeminiGoalPrediction } fr
 import { ArrowLeft, RefreshCw, Siren, TrendingUp, Info } from 'lucide-react';
 import { ResponsiveContainer, ComposedChart, Scatter, XAxis, YAxis, Tooltip, Cell, Line, Legend } from 'recharts';
 import { LiveStatsTable } from './LiveStatsTable'; // Import the new component
+import { TicketManager } from './TicketManager'; // Import the new TicketManager component
 
 // --- Types for Highlights and Shots ---
 interface Highlight {
@@ -736,6 +737,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
             <StatBox label="Trúng đích" home={stats.on_target[0]} away={stats.on_target[1]} highlight />
             <StatBox label="Phạt góc" home={stats.corners[0]} away={stats.corners[1]} />
         </div>
+
+        {/* Ticket Manager Component */}
+        <TicketManager 
+            match={liveMatch} 
+            latestOverOdds={oddsHistory[oddsHistory.length - 1]}
+            latestHomeOdds={homeOddsHistory[homeOddsHistory.length - 1]}
+        />
       </div>
     </div>
   );
