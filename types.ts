@@ -1,4 +1,5 @@
 
+
 export interface MatchInfo {
   id: string;
   league: { name: string };
@@ -66,24 +67,4 @@ export interface AIPredictionResponse {
   // Fix: Update confidence_level type to match AI's Vietnamese output
   confidence_level: 'thấp' | 'trung bình' | 'cao' | 'rất cao';
   reasoning?: string; // Optional explanation from AI
-}
-
-// --- NEW TYPES FOR BETTING TRACKER ---
-
-export type BetType = 'OVER' | 'UNDER' | 'HOME' | 'AWAY';
-export type BetStatus = 'PENDING' | 'WON' | 'LOST' | 'HALF_WON' | 'HALF_LOST' | 'PUSH';
-
-export interface Bet {
-  id: string;
-  matchId: string;
-  matchName: string;
-  type: BetType;
-  handicap: number;
-  odds: number;
-  stake: number;
-  scoreAtBet: string;
-  status: BetStatus;
-  profit: number;
-  timestamp: number;
-  finalScore?: string;
 }

@@ -327,7 +327,7 @@ export async function getGeminiGoalPrediction(
   const promptContent = `
     Bạn là một chuyên gia phân tích trận đấu bóng đá với kiến thức sâu sắc về động lực trận đấu và thị trường cá cược.
     Dựa trên các số liệu thống kê trận đấu thời gian thực, tỷ số hiện tại, tỷ lệ cược và các yếu tố phân tích truyền thống sau đây,
-    hãy dự đoán xác suất có bàn thắng được ghi trong *5 phút tiếp theo* của trận đấu.
+    hãy dự đoán xác suất có bàn thắng được ghi trong *10 phút tiếp theo* của trận đấu.
     Cung cấp dự đoán của bạn dưới dạng phần trăm (0-100), mức độ tin cậy và một lý do ngắn gọn.
     Tất cả các phần trong phản hồi (bao gồm lý do và mức độ tin cậy) phải bằng tiếng Việt.
 
