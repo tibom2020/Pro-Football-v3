@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { MatchList } from './components/MatchList';
 import { Dashboard } from './components/Dashboard';
 import { MatchInfo } from './types';
@@ -15,6 +15,7 @@ const App = () => {
   const [events, setEvents] = useState<MatchInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Load token from local storage on mount
   useEffect(() => {
@@ -114,6 +115,18 @@ const App = () => {
     setCurrentMatch(null);
     setToken('');
   }
+  
+  const filteredEvents = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return events;
+    }
+    const lowercasedQuery = searchQuery.toLowerCase().trim();
+    return events.filter(event =>
+      event.home.name.toLowerCase().includes(lowercasedQuery) ||
+      event.away.name.toLowerCase().includes(lowercasedQuery) ||
+      event.league.name.toLowerCase().includes(lowercasedQuery)
+    );
+  }, [events, searchQuery]);
 
   if (!hasToken) {
     return (
@@ -184,9 +197,11 @@ const App = () => {
             </div>
         )}
         <MatchList 
-          events={events} 
+          events={filteredEvents} 
           onSelectMatch={handleSelectMatch} 
-          isLoading={loading && events.length === 0 && !error} 
+          isLoading={loading && events.length === 0 && !error}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
         />
       </div>
     </div>

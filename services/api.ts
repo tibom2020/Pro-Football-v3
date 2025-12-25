@@ -13,7 +13,7 @@ import { GoogleGenAI, Type } from "@google/genai";
  * Make sure your Worker is configured to forward the 'target' query parameter
  * and correctly sets CORS headers.
  */
-const PROXY_URL = "https://long-tooth-f7a5.phanvietlinh-0b1.workers.dev/"; 
+const PROXY_URL = "https://odd-dew-2f95.phanvietlinh-0b1.workers.dev/"; 
 
 const B365_API_INPLAY = "https://api.b365api.com/v3/events/inplay";
 const B365_API_ODDS = "https://api.b365api.com/v2/event/odds";
