@@ -284,7 +284,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
     return finalData;
   }, [homeOddsHistory]);
 
-  // Simplified runPatternDetection to only update highlights based on AI score
   const runPatternDetection = useCallback(async (aiScore: number, aiLevel: PreGoalAnalysis['level']) => {
     const currentMinute = parseInt(liveMatch.timer?.tm?.toString() || liveMatch.time || "0");
     if (!currentMinute || currentMinute < 10) return;
@@ -309,7 +308,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
     }
   }, [liveMatch.timer, liveMatch.time]);
 
-  // Separate function to fetch Gemini AI prediction
   const fetchGeminiPrediction = useCallback(async () => {
     setIsAIPredicting(true);
     try {
@@ -420,14 +418,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
                 setStatsHistory(prev => ({ ...prev, [currentTime]: currentParsedStats }));
             }
             
-            // AI PREDICTION TRIGGER LOGIC BASED ON MATCH TIME
             const currentMinute = updatedDetails.timer?.tm;
             if (currentMinute && !isAIPredicting) {
                 const lastAnalysisMinute = latestAnalysis?.minute;
                 
                 const shouldPredict = lastAnalysisMinute === undefined
-                    ? currentMinute >= 10 // First prediction if match is past 10 mins
-                    : currentMinute >= lastAnalysisMinute + 10; // Subsequent predictions every 10 match minutes
+                    ? currentMinute >= 10
+                    : currentMinute >= lastAnalysisMinute + 10;
 
                 if (shouldPredict) {
                     fetchGeminiPrediction();
@@ -466,15 +463,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
     }
   }, [token, liveMatch.id, latestAnalysis, runPatternDetection, fetchGeminiPrediction, isAIPredicting]); 
   
-  // Main Data Fetching Effect (initial fetch and interval setup for raw data)
   useEffect(() => {
     let isMounted = true;
-    let intervalId: number | undefined; 
-
-    // Fetch on mount, then set up the interval.
     handleRefresh();
-
-    intervalId = window.setInterval(() => {
+    const intervalId = window.setInterval(() => {
       if (isMounted) {
         handleRefresh();
       }
@@ -482,13 +474,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
 
     return () => {
       isMounted = false;
-      if (intervalId !== undefined) {
-        clearInterval(intervalId); 
-      }
+      clearInterval(intervalId);
     };
-  }, [liveMatch.id, token]); // Simplified dependencies to prevent interval reset
+  }, [handleRefresh, AUTO_REFRESH_INTERVAL_MS]);
   
-  // Effect to update shot events from stats history
   useEffect(() => {
       const allTimes = Object.keys(statsHistory).map(Number).sort((a,b)=>a-b);
       if (allTimes.length < 2) return;
@@ -517,6 +506,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
       return sortedMinutes.map(minute => ({ minute, homeApi: calculateAPIScore(statsHistory[minute], 0), awayApi: calculateAPIScore(statsHistory[minute], 1) }));
   }, [statsHistory]);
   
+  const currentMinute = useMemo(() => liveMatch.timer?.tm || parseInt(liveMatch.time || '0'), [liveMatch.timer, liveMatch.time]);
+  const hasRecentAnalysis = useMemo(() => {
+      if (!latestAnalysis) return false;
+      const lastAnalysisMinute = latestAnalysis.minute;
+      return currentMinute < lastAnalysisMinute + 10;
+  }, [currentMinute, latestAnalysis]);
+
   return (
     <div className="pb-10">
       <div className="bg-white sticky top-0 z-10 shadow-sm border-b border-gray-200">
@@ -534,9 +530,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
           <div className="flex items-center space-x-2">
             <button 
               onClick={fetchGeminiPrediction} 
-              disabled={isAIPredicting} 
+              disabled={isAIPredicting || hasRecentAnalysis} 
               className="p-2 -mr-2 bg-blue-500 hover:bg-blue-600 text-white rounded-full flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
               aria-label="Phân tích AI"
+              title={hasRecentAnalysis ? `Đã có phân tích gần đây lúc ${latestAnalysis?.minute}'. Vui lòng đợi đến phút ${latestAnalysis && latestAnalysis.minute + 10}'` : 'Chạy phân tích AI'}
             >
               {isAIPredicting ? <RefreshCw className="w-5 h-5 animate-spin" /> : <TrendingUp className="w-5 h-5" />}
             </button>
