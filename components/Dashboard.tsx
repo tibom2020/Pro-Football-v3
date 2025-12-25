@@ -3,7 +3,7 @@ import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { MatchInfo, PreGoalAnalysis, ProcessedStats, Bet, BetType, BetStatus } from '../types';
 import { parseStats, getMatchDetails, getMatchOdds } from '../services/api';
 import { ArrowLeft, RefreshCw, Siren, TrendingUp, Activity, Target, Info } from 'lucide-react';
-import { ResponsiveContainer, ComposedChart, XAxis, YAxis, Tooltip, Line } from 'recharts';
+import { ResponsiveContainer, ComposedChart, XAxis, YAxis, Tooltip, Line, Legend } from 'recharts';
 import { LiveStatsTable } from './LiveStatsTable';
 import { BettingHistory } from './BettingHistory';
 
@@ -22,6 +22,28 @@ const calculateAPIScore = (stats: ProcessedStats | undefined, sideIndex: 0 | 1):
     const dangerous = stats.dangerous_attacks[sideIndex];
     return (shots * 1.0) + (onTarget * 3.0) + (corners * 0.7) + (dangerous * 0.1);
 };
+
+// Custom Tooltip for combined charts
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    const data = payload[0].payload;
+    return (
+      <div className="bg-white/90 backdrop-blur-sm p-3 rounded-xl border border-slate-200 shadow-lg text-xs">
+        <p className="font-black text-slate-800 mb-2">{`Phút ${label}'`}</p>
+        {data.handicap && <p className="text-slate-500 font-bold mb-2">HDP: {data.handicap}</p>}
+        <div className="space-y-1">
+            {payload.map((p: any) => (
+                <p key={p.dataKey} style={{ color: p.color }} className="font-semibold">
+                    {p.name}: <span className="font-black">{p.value?.toFixed(p.name.includes('API') ? 1 : 2)}</span>
+                </p>
+            ))}
+        </div>
+      </div>
+    );
+  }
+  return null;
+};
+
 
 export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) => {
   const [liveMatch, setLiveMatch] = useState<MatchInfo>(match);
@@ -184,6 +206,34 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
       awayApi: calculateAPIScore(statsHistory[min], 1)
     }));
   }, [statsHistory]);
+  
+  const { overUnderChartData, homeAwayChartData } = useMemo(() => {
+    const apiDataMap = new Map<number, { homeApi: number, awayApi: number }>();
+    apiChartData.forEach(data => {
+        apiDataMap.set(data.minute, { homeApi: data.homeApi, awayApi: data.awayApi });
+    });
+
+    const mergeData = (oddsData: any[]) => {
+        const allMinutes = new Set([...oddsData.map(d => d.minute), ...apiChartData.map(d => d.minute)]);
+        const sortedMinutes = Array.from(allMinutes).sort((a, b) => a - b);
+        const oddsMap = new Map(oddsData.map(i => [i.minute, i]));
+
+        return sortedMinutes.map(minute => {
+            const oddsPoint = oddsMap.get(minute);
+            const apiPoint = apiDataMap.get(minute);
+            return {
+                minute,
+                ...oddsPoint,
+                ...apiPoint,
+            };
+        });
+    };
+
+    return {
+        overUnderChartData: mergeData(oddsHistory),
+        homeAwayChartData: mergeData(homeOddsHistory),
+    };
+}, [oddsHistory, homeOddsHistory, apiChartData]);
 
   const latestOver = oddsHistory.length > 0 ? oddsHistory[oddsHistory.length - 1] : null;
   const latestHome = homeOddsHistory.length > 0 ? homeOddsHistory[homeOddsHistory.length - 1] : null;
@@ -275,17 +325,41 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
           </div>
         </div>
         
-        {/* Momentum Chart */}
+        {/* Over/Under Odds & API Chart */}
         <div className="bg-white rounded-3xl p-4 shadow-sm border border-slate-100">
-            <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2"><Activity className="w-5 h-5 text-blue-500"/> Biểu đồ API Momentum</h3>
-            <div className="h-48 w-full">
+            <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2"><TrendingUp className="w-5 h-5 text-emerald-500"/> Biểu đồ Kèo O/U & API</h3>
+            <div className="h-56 w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart data={apiChartData} margin={{ top: 5, right: 10, left: -25, bottom: 5 }}>
+                    <ComposedChart data={overUnderChartData} margin={{ top: 5, right: 0, left: -25, bottom: 5 }}>
                         <XAxis dataKey="minute" unit="'" tick={{ fontSize: 10 }} stroke="#9ca3af" />
-                        <YAxis tick={{ fontSize: 10 }} stroke="#9ca3af" />
-                        <Tooltip contentStyle={{ fontSize: '12px', padding: '5px', borderRadius: '8px' }} />
-                        <Line type="monotone" dataKey="homeApi" name="Home API" stroke="#3b82f6" strokeWidth={3} dot={false} />
-                        <Line type="monotone" dataKey="awayApi" name="Away API" stroke="#f97316" strokeWidth={3} dot={false} />
+                        <YAxis yAxisId="left" orientation="left" domain={['dataMin - 0.1', 'dataMax + 0.1']} tick={{ fontSize: 10 }} stroke="#9ca3af" allowDataOverflow />
+                        <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10 }} stroke="#9ca3af" />
+                        <Tooltip content={<CustomTooltip />} />
+                        <Legend wrapperStyle={{fontSize: "10px"}}/>
+                        <Line yAxisId="left" type="monotone" dataKey="over" name="Over" stroke="#10b981" strokeWidth={2} dot={false} />
+                        <Line yAxisId="left" type="monotone" dataKey="under" name="Under" stroke="#ef4444" strokeWidth={2} dot={false} />
+                        <Line yAxisId="right" type="monotone" dataKey="homeApi" name="Home API" stroke="#3b82f6" strokeWidth={2} dot={false} strokeDasharray="3 3" />
+                        <Line yAxisId="right" type="monotone" dataKey="awayApi" name="Away API" stroke="#f97316" strokeWidth={2} dot={false} strokeDasharray="3 3" />
+                    </ComposedChart>
+                </ResponsiveContainer>
+            </div>
+        </div>
+
+        {/* Home/Away Odds & API Chart */}
+        <div className="bg-white rounded-3xl p-4 shadow-sm border border-slate-100">
+            <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2"><Target className="w-5 h-5 text-indigo-500"/> Biểu đồ Kèo AH & API</h3>
+            <div className="h-56 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart data={homeAwayChartData} margin={{ top: 5, right: 0, left: -25, bottom: 5 }}>
+                        <XAxis dataKey="minute" unit="'" tick={{ fontSize: 10 }} stroke="#9ca3af" />
+                        <YAxis yAxisId="left" orientation="left" domain={['dataMin - 0.1', 'dataMax + 0.1']} tick={{ fontSize: 10 }} stroke="#9ca3af" allowDataOverflow />
+                        <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10 }} stroke="#9ca3af" />
+                        <Tooltip content={<CustomTooltip />} />
+                        <Legend wrapperStyle={{fontSize: "10px"}}/>
+                        <Line yAxisId="left" type="monotone" dataKey="home" name="Home" stroke="#3b82f6" strokeWidth={2} dot={false} />
+                        <Line yAxisId="left" type="monotone" dataKey="away" name="Away" stroke="#f97316" strokeWidth={2} dot={false} />
+                        <Line yAxisId="right" type="monotone" dataKey="homeApi" name="Home API" stroke="#818cf8" strokeWidth={2} dot={false} strokeDasharray="3 3" />
+                        <Line yAxisId="right" type="monotone" dataKey="awayApi" name="Away API" stroke="#fbbf24" strokeWidth={2} dot={false} strokeDasharray="3 3" />
                     </ComposedChart>
                 </ResponsiveContainer>
             </div>
