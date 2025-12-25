@@ -39,7 +39,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
             <p className="font-bold">Phút: {minute}'</p>
             {marketData && (
                 <>
-                    <p>HDP: {typeof marketData.handicap === 'number' ? marketData.handacap.toFixed(2) : '-'}</p>
+                    <p>HDP: {typeof marketData.handicap === 'number' ? marketData.handicap.toFixed(2) : '-'}</p>
                     {marketData.over !== undefined && (
                         <p className="text-gray-400">Tỷ lệ Tài: {typeof marketData.over === 'number' ? marketData.over.toFixed(3) : '-'}</p>
                     )}
@@ -186,23 +186,22 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
   const [statsHistory, setStatsHistory] = useState<Record<number, ProcessedStats>>({});
   const [highlights, setHighlights] = useState<AllHighlights>({ overUnder: [], homeOdds: [] });
   const [shotEvents, setShotEvents] = useState<ShotEvent[]>([]);
-  const [analysis, setAnalysis] = useState<PreGoalAnalysis>({
-    score: 0,
-    // Fix: Initialize with a valid Vietnamese confidence level
-    level: 'thấp', // Default in Vietnamese, will be updated by AI
-    factors: { apiMomentum: 0, shotCluster: 0, pressure: 0 },
-    reasoning: "Phân tích AI sẽ xuất hiện trong giây lát." // Initial reasoning in Vietnamese
-  });
+  const [analysisHistory, setAnalysisHistory] = useState<PreGoalAnalysis[]>([]);
   
   const stats = useMemo(() => parseStats(liveMatch.stats), [liveMatch.stats]);
+  const latestAnalysis = useMemo(() => analysisHistory[0] || null, [analysisHistory]);
 
   // --- Persistence Effects ---
   useEffect(() => {
-    const savedHistory = localStorage.getItem(`statsHistory_${match.id}`);
-    if (savedHistory) setStatsHistory(JSON.parse(savedHistory)); else setStatsHistory({});
+    const savedStats = localStorage.getItem(`statsHistory_${match.id}`);
+    if (savedStats) setStatsHistory(JSON.parse(savedStats)); else setStatsHistory({});
     
     const savedHighlights = localStorage.getItem(`highlights_${match.id}`);
     if (savedHighlights) setHighlights(JSON.parse(savedHighlights)); else setHighlights({ overUnder: [], homeOdds: [] });
+
+    const savedAnalysis = localStorage.getItem(`analysisHistory_${match.id}`);
+    if (savedAnalysis) setAnalysisHistory(JSON.parse(savedAnalysis)); else setAnalysisHistory([]);
+
   }, [match.id]);
 
   useEffect(() => {
@@ -216,6 +215,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
         localStorage.setItem(`highlights_${match.id}`, JSON.stringify(highlights));
     }
   }, [highlights, match.id]);
+
+  useEffect(() => {
+    if (analysisHistory.length > 0) {
+        localStorage.setItem(`analysisHistory_${match.id}`, JSON.stringify(analysisHistory));
+    }
+  }, [analysisHistory, match.id]);
+
 
   const marketChartData = useMemo(() => {
     const dataByHandicap: Record<string, { minute: number; over: number; under: number; handicap: string; }[]> = {};
@@ -315,11 +321,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
     
     try {
         // Ensure we have the latest match details for AI prediction
-        // This is crucial as the main refresh might not have completed very recently.
         const latestDetails = await getMatchDetails(token, liveMatch.id);
         if (!latestDetails) {
             console.warn("Could not get latest match details for AI prediction.");
-            setAnalysis(prev => ({ ...prev, reasoning: "Không thể lấy chi tiết trận đấu mới nhất cho phân tích AI." }));
             return;
         }
 
@@ -344,7 +348,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
           }
           const homeMarkets = latestOddsData.results?.odds?.['1_2'];
           if (homeMarkets) {
-              // Fix: Include 'away' in the mapped object for homeOddsHistory
               const newHomeHistory = homeMarkets
                   .filter(m => m.time_str && m.home_od && m.away_od && m.handicap)
                   .map(m => ({ minute: parseInt(m.time_str), home: parseFloat(m.home_od!), away: parseFloat(m.away_od!), handicap: m.handicap! }))
@@ -360,11 +363,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
         const homeTeamName = latestDetails?.home.name || "Home";
         const awayTeamName = latestDetails?.away.name || "Away";
 
-        // Use the latest odds from state (which might have just been updated by getMatchOdds above)
         const currentLatestOverOdds = oddsHistory.length > 0 ? oddsHistory[oddsHistory.length - 1] : null;
         const currentLatestHomeOdds = homeOddsHistory.length > 0 ? homeOddsHistory[homeOddsHistory.length - 1] : null;
 
-        // Recalculate traditional factors based on the latest available data
         const allTimes = Object.keys(statsHistory).map(Number).sort((a,b)=>a-b);
         const getAPIMomentumAt = (minute: number, window: number) => {
             if (!currentParsedStats) return 0;
@@ -394,13 +395,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
         const shotCluster = getShotClusterScore(currentMinute, 5);
         const pressure = getBubbleIntensity(marketChartData, currentMinute, 3) + getBubbleIntensity(homeMarketChartData, currentMinute, 3);
         
-        // Calculate homeApiScore and awayApiScore from currentParsedStats directly
         const homeApiScore = currentParsedStats ? calculateAPIScore(currentParsedStats, 0) : 0;
         const awayApiScore = currentParsedStats ? calculateAPIScore(currentParsedStats, 1) : 0;
 
         try {
             const aiPrediction = await getGeminiGoalPrediction(
-                liveMatch.id, // Use initial liveMatch.id as it's stable
+                liveMatch.id,
                 currentMinute,
                 homeTeamName,
                 awayTeamName,
@@ -417,26 +417,20 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
             );
 
             if (aiPrediction) {
-                setAnalysis({
+                const newAnalysis: PreGoalAnalysis = {
+                    minute: currentMinute,
                     score: aiPrediction.goal_probability,
                     level: aiPrediction.confidence_level,
-                    factors: { apiMomentum, shotCluster, pressure }, // Keep traditional factors visible
+                    factors: { apiMomentum, shotCluster, pressure },
                     reasoning: aiPrediction.reasoning,
-                });
-                runPatternDetection(aiPrediction.goal_probability, aiPrediction.confidence_level); // Update highlights based on AI
+                };
+                setAnalysisHistory(prev => [newAnalysis, ...prev]);
+                runPatternDetection(aiPrediction.goal_probability, aiPrediction.confidence_level);
             } else {
                 console.warn("Gemini AI prediction failed, analysis not updated.");
-                setAnalysis(prev => ({
-                    ...prev,
-                    reasoning: prev.reasoning || "Phân tích AI không khả dụng.",
-                }));
             }
         } catch (error) {
             console.error("Error fetching Gemini prediction:", error);
-            setAnalysis(prev => ({
-                ...prev,
-                reasoning: `Lỗi khi gọi AI: ${error instanceof Error ? error.message : String(error)}.`,
-            }));
         }
     } finally {
         setIsAIPredicting(false); // End AI loading
@@ -444,19 +438,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
   }, [token, liveMatch.id, liveMatch.timer, liveMatch.time, liveMatch.home.name, liveMatch.away.name, liveMatch.ss, oddsHistory, homeOddsHistory, statsHistory, marketChartData, homeMarketChartData, runPatternDetection]);
 
 
-  // handleRefresh now only fetches raw match data and odds. It does NOT call Gemini AI directly.
+  // handleRefresh now only fetches raw match data and odds.
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
-    let updatedDetails: MatchInfo | null = null;
-    let currentParsedStats: ProcessedStats | undefined;
-
     try {
-        updatedDetails = await getMatchDetails(token, liveMatch.id);
+        const updatedDetails = await getMatchDetails(token, liveMatch.id);
         if (updatedDetails) {
             setLiveMatch(updatedDetails);
             const currentTime = updatedDetails.timer?.tm;
             if (currentTime && updatedDetails.stats) {
-                currentParsedStats = parseStats(updatedDetails.stats);
+                const currentParsedStats = parseStats(updatedDetails.stats);
                 setStatsHistory(prev => ({ ...prev, [currentTime]: currentParsedStats }));
             }
         }
@@ -473,7 +464,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
             }
             const homeMarkets = updatedOdds.results?.odds?.['1_2'];
             if (homeMarkets) {
-                // Fix: Ensure 'away' is included when updating homeOddsHistory
                 const newHomeHistory = homeMarkets
                     .filter(m => m.time_str && m.home_od && m.away_od && m.handicap)
                     .map(m => ({ minute: parseInt(m.time_str), home: parseFloat(m.home_od!), away: parseFloat(m.away_od!), handicap: m.handicap! }))
@@ -481,17 +471,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
                 setHomeOddsHistory(newHomeHistory);
             }
         }
-        // runPatternDetection now uses the `analysis` state which is updated by `fetchGeminiPrediction`
-        // We still call it here to ensure highlights are updated even if AI prediction hasn't fired yet
-        runPatternDetection(analysis.score, analysis.level); 
+        
+        if (latestAnalysis) {
+            runPatternDetection(latestAnalysis.score, latestAnalysis.level); 
+        }
 
     } catch (error) {
         console.error("Error during data refresh:", error);
-        // This is for data fetch error, not AI.
     } finally {
         setIsRefreshing(false);
     }
-  }, [token, liveMatch.id, analysis.score, analysis.level, runPatternDetection]); 
+  }, [token, liveMatch.id, latestAnalysis, runPatternDetection]); 
   
   // Main Data Fetching Effect (initial fetch and interval setup for raw data)
   useEffect(() => {
@@ -625,39 +615,62 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
       </div>
 
       <div className="px-4 mt-4 space-y-4">
-        <div className={`rounded-2xl p-4 flex flex-col gap-2 shadow-sm border ${analysis.level === 'rất cao' ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-gray-200'}`}>
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                    {/* Fix: Use Vietnamese strings for comparison */}
-                    <div className={`p-3 rounded-xl ${analysis.level === 'rất cao' ? 'bg-red-500 text-white' : 'bg-white text-gray-500'}`}><Siren className="w-6 h-6" /></div>
-                    <div>
-                        <div className="text-xs font-bold text-gray-500 uppercase tracking-wider">Xác suất bàn thắng AI Gemini</div>
-                        <div className={`text-2xl font-black ${analysis.level === 'rất cao' ? 'text-red-600' : 'text-gray-800'}`}>{analysis.score}%</div>
-                    </div>
-                </div>
-                <div className="text-right">
-                    <div className="text-xs text-gray-500">Độ tin cậy AI:</div>
-                    {/* Fix: Use Vietnamese strings for comparison */}
-                    <div className={`font-bold ${analysis.level === 'rất cao' ? 'text-red-600' : analysis.level === 'cao' ? 'text-orange-500' : analysis.level === 'trung bình' ? 'text-yellow-500' : 'text-gray-500'}`}>{analysis.level.toUpperCase()}</div>
-                </div>
-            </div>
-            {analysis.reasoning && (
-                <div className="bg-white p-3 rounded-xl border border-gray-100 text-xs text-gray-700 flex items-start gap-2 mt-2">
-                    <Info className="w-4 h-4 text-gray-500 flex-shrink-0 mt-0.5" />
-                    <p className="flex-grow">{analysis.reasoning}</p>
+        <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+            <h3 className="text-sm font-bold text-gray-700 mb-3">Lịch sử Phân tích AI Gemini</h3>
+            {isAIPredicting && analysisHistory.length === 0 && (
+                <p className="text-xs text-gray-500 animate-pulse text-center p-4">Đang chạy phân tích AI lần đầu...</p>
+            )}
+            {analysisHistory.length === 0 && !isAIPredicting && (
+                 <p className="text-xs text-gray-500 text-center p-4">Chưa có phân tích AI nào cho trận đấu này.</p>
+            )}
+            {analysisHistory.length > 0 && (
+                <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 no-scrollbar">
+                    {analysisHistory.map((item, index) => (
+                        <div key={index} className={`p-3 rounded-lg ${index === 0 ? 'border-2 border-blue-500 bg-blue-50' : 'bg-gray-50 border border-gray-200'}`}>
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className={`p-2 rounded-lg ${item.level === 'rất cao' ? 'bg-red-500 text-white' : index === 0 ? 'bg-blue-500 text-white' : 'bg-white text-gray-500'}`}>
+                                        <Siren className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <div className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                                            Phút {item.minute}' - {index === 0 ? "Mới nhất" : `Cách đây ${index * 10} phút`}
+                                        </div>
+                                        <div className={`text-xl font-black ${item.level === 'rất cao' ? 'text-red-600' : 'text-gray-800'}`}>
+                                            Xác suất: {item.score}%
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="text-right">
+                                    <div className="text-xs text-gray-500">Độ tin cậy:</div>
+                                    <div className={`font-bold ${item.level === 'rất cao' ? 'text-red-600' : item.level === 'cao' ? 'text-orange-500' : item.level === 'trung bình' ? 'text-yellow-500' : 'text-gray-500'}`}>
+                                        {item.level.toUpperCase()}
+                                    </div>
+                                </div>
+                            </div>
+                            {item.reasoning && (
+                                <div className="bg-white p-3 rounded-xl border border-gray-100 text-xs text-gray-700 flex items-start gap-2 mt-3">
+                                    <Info className="w-4 h-4 text-gray-500 flex-shrink-0 mt-0.5" />
+                                    <p className="flex-grow">{item.reasoning}</p>
+                                </div>
+                            )}
+                        </div>
+                    ))}
                 </div>
             )}
         </div>
 
         {/* Traditional Factors Section */}
-        <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-            <h3 className="text-sm font-bold text-gray-700 mb-3">Các yếu tố truyền thống</h3>
-            <div className="grid grid-cols-3 gap-x-4 gap-y-2 text-sm">
-                <StatItem label="Động lực" value={typeof analysis.factors.apiMomentum === 'number' ? analysis.factors.apiMomentum.toFixed(1) : '-'} color="text-indigo-600" />
-                <StatItem label="Cụm sút" value={typeof analysis.factors.shotCluster === 'number' ? analysis.factors.shotCluster.toFixed(1) : '-'} color="text-green-600" />
-                <StatItem label="Áp lực" value={typeof analysis.factors.pressure === 'number' ? analysis.factors.pressure.toFixed(1) : '-'} color="text-purple-600" />
+        {latestAnalysis && (
+            <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                <h3 className="text-sm font-bold text-gray-700 mb-3">Các yếu tố truyền thống (Phút {latestAnalysis.minute}')</h3>
+                <div className="grid grid-cols-3 gap-x-4 gap-y-2 text-sm">
+                    <StatItem label="Động lực" value={typeof latestAnalysis.factors.apiMomentum === 'number' ? latestAnalysis.factors.apiMomentum.toFixed(1) : '-'} color="text-indigo-600" />
+                    <StatItem label="Cụm sút" value={typeof latestAnalysis.factors.shotCluster === 'number' ? latestAnalysis.factors.shotCluster.toFixed(1) : '-'} color="text-green-600" />
+                    <StatItem label="Áp lực" value={typeof latestAnalysis.factors.pressure === 'number' ? latestAnalysis.factors.pressure.toFixed(1) : '-'} color="text-purple-600" />
+                </div>
             </div>
-        </div>
+        )}
 
         {/* New Live Stats Table */}
         <LiveStatsTable
@@ -753,4 +766,3 @@ const StatBox = ({ label, home, away, highlight }: { label: string, home: number
         </div>
     );
 };
-    

@@ -363,7 +363,7 @@ export async function getGeminiGoalPrediction(
           properties: {
             goal_probability: {
               type: Type.INTEGER,
-              description: 'Xác suất bàn thắng được ghi trong 5 phút tiếp theo, dưới dạng phần trăm (0-100).'
+              description: 'Xác suất bàn thắng được ghi trong 10 phút tiếp theo, dưới dạng phần trăm (0-100).'
             },
             confidence_level: {
               type: Type.STRING,

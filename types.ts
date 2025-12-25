@@ -50,6 +50,7 @@ export interface ChartPoint {
 }
 
 export interface PreGoalAnalysis {
+  minute: number;
   score: number;
   // Fix: Update level type to match AI's Vietnamese output
   level: 'thấp' | 'trung bình' | 'cao' | 'rất cao';
