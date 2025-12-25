@@ -1,4 +1,5 @@
 
+
 export interface MatchInfo {
   id: string;
   league: { name: string };
@@ -41,37 +42,29 @@ export interface OddsData {
   };
 }
 
-export type BetType = 'OVER' | 'UNDER' | 'HOME' | 'AWAY';
-export type BetStatus = 'PENDING' | 'WON' | 'LOST' | 'HALF_WON' | 'HALF_LOST' | 'PUSH';
-
-export interface Bet {
-  id: string;
-  matchId: string;
-  matchName: string;
-  type: BetType;
-  handicap: number;
-  odds: number;
-  stake: number;
-  scoreAtBet: string;
-  finalScore?: string;
-  status: BetStatus;
-  profit: number;
-  timestamp: number;
+export interface ChartPoint {
+  time: number;
+  value: number;
+  type?: 'home' | 'away' | 'over' | 'under';
+  handicap?: number;
 }
 
 export interface PreGoalAnalysis {
   score: number;
+  // Fix: Update level type to match AI's Vietnamese output
   level: 'thấp' | 'trung bình' | 'cao' | 'rất cao';
   factors: {
     apiMomentum: number;
     shotCluster: number;
     pressure: number;
   };
-  reasoning?: string;
+  reasoning?: string; // Added for AI explanation
 }
 
+// New interface for AI prediction response
 export interface AIPredictionResponse {
-  goal_probability: number;
+  goal_probability: number; // 0-100
+  // Fix: Update confidence_level type to match AI's Vietnamese output
   confidence_level: 'thấp' | 'trung bình' | 'cao' | 'rất cao';
-  reasoning?: string;
+  reasoning?: string; // Optional explanation from AI
 }
