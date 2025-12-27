@@ -105,10 +105,9 @@ export const TicketManager: React.FC<TicketManagerProps> = ({ match, latestOverO
     }
   };
 
-  const currentHandicap = useMemo(() => {
-    const isOverUnder = betType === 'Tài' || betType === 'Xỉu';
-    return isOverUnder ? latestOverOdds?.handicap : latestHomeOdds?.handicap;
-  }, [betType, latestOverOdds, latestHomeOdds]);
+  // Calculate current handicap directly on render to ensure it's always up-to-date
+  const isOverUnderBet = betType === 'Tài' || betType === 'Xỉu';
+  const currentHandicap = isOverUnderBet ? latestOverOdds?.handicap : latestHomeOdds?.handicap;
 
   const summary = useMemo(() => {
     return tickets.reduce((acc, ticket) => {
